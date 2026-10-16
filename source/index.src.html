@@ -1,0 +1,414 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>型ばらし</title>
+<meta name="description" content="気になる投稿を貼ると、書き出しの型・行ごとの役割・締めの型・長さを分けて見せます。型の並びだけを骨組みとして取り出せます。貼った文は端末の中だけで処理し、保存しません。">
+<style>
+  :root {
+    --bg: #f5f6f1; --surface: #ffffff; --ink: #1f2318; --ink2: #3f4536; --ink3: #596050;
+    --line: #d5d8cc; --line-strong: #737a68; --accent: #4B7A1F; --accent-ink: #ffffff; --accent-soft: #e6efd6;
+    --warn-bg: #fff0c2; --warn-line: #8a5a00; --warn-ink: #4d3200;
+    --k-open: #d9ecbd; --k-close: #f2d6e4; --k-q: #d5e5f6; --k-num: #fbe3a6; --k-tag: #e3dcf2; --k-link: #d2ece9; --k-body: #ececE4; --k-blank: #f1f1ec;
+    --b-open: #3f6a14; --b-close: #9a2f62; --b-q: #2e5f93; --b-num: #8a5a00; --b-tag: #5b4a92; --b-link: #1f6b66; --b-body: #6b705f;
+    --font: "Hiragino Sans","Yu Gothic","BIZ UDPGothic","Noto Sans JP",system-ui,sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #151810; --surface: #1f2318; --ink: #eef3e6; --ink2: #cfd6c2; --ink3: #a9b19b;
+      --line: #394030; --line-strong: #7f8872; --accent: #A8D26A; --accent-ink: #1c2a0c; --accent-soft: #2c3a1a;
+      --warn-bg: #4a3a0c; --warn-line: #e0b34a; --warn-ink: #ffe9b0;
+      --k-open: #2f4a19; --k-close: #5a2640; --k-q: #1e3a57; --k-num: #5a4310; --k-tag: #3d3359; --k-link: #1d4745; --k-body: #2a2d22; --k-blank: #22251b;
+      --b-open: #A8D26A; --b-close: #f2a6c8; --b-q: #8cc0f2; --b-num: #f0c35c; --b-tag: #c4b4f0; --b-link: #84d6cf; --b-body: #aab29c;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font); font-size: 16px; line-height: 1.6; }
+  main { max-width: 1040px; margin: 0 auto; padding: 16px 16px 32px; }
+  h1 { font-size: 22px; line-height: 1.3; margin: 8px 0 8px; }
+  h2 { font-size: 17px; line-height: 1.4; margin: 0 0 8px; }
+  p { margin: 0 0 8px; }
+  a { color: var(--accent); }
+  .lead { color: var(--ink2); }
+  .hint { font-size: 16px; color: var(--ink3); margin: 6px 0 0; }
+  .notes { list-style: none; margin: 12px 0 16px; padding: 12px 14px; background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: 6px; font-size: 16px; }
+  .notes li { margin: 0 0 6px; padding-left: 1.5em; text-indent: -1.5em; }
+  .notes li:last-child { margin-bottom: 0; }
+  .notes li::before { content: attr(data-n); display: inline-block; width: 1.5em; text-indent: 0; font-weight: 700; color: var(--accent); }
+  .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 14px; margin: 0 0 14px; }
+  .vh { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+  [hidden] { display: none !important; }
+  :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+  label.lb { display: block; font-weight: 700; margin: 0 0 6px; }
+  textarea { display: block; width: 100%; min-height: 280px; resize: vertical; font: inherit; font-size: 16px; line-height: 1.6; padding: 10px 12px; border-radius: 6px; border: 1px solid var(--line-strong); background: var(--bg); color: var(--ink); }
+  textarea.sk { min-height: 0; height: auto; resize: none; }
+  button { font: inherit; font-size: 16px; min-height: 44px; padding: 8px 14px; border-radius: 6px; cursor: pointer; background: var(--surface); color: var(--ink); border: 1px solid var(--line-strong); }
+  button.pri { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 700; }
+  .btnrow { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+
+  .sum { margin: 0 0 12px; padding: 0; list-style: none; display: grid; grid-template-columns: 1fr; gap: 6px; }
+  .sum li { margin: 0; padding: 8px 10px; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; overflow-wrap: anywhere; }
+  .sum b { display: block; font-size: 16px; color: var(--ink3); font-weight: 600; }
+  .sum span.v { font-weight: 700; }
+
+  .bd { display: inline-block; padding: 0 8px; border-radius: 999px; font-size: 16px; font-weight: 700; line-height: 1.6; border: 2px solid var(--line-strong); background: var(--surface); color: var(--ink); white-space: nowrap; }
+  .bd.k-open { border-color: var(--b-open); background: var(--k-open); }
+  .bd.k-close { border-color: var(--b-close); background: var(--k-close); }
+  .bd.k-q { border-color: var(--b-q); background: var(--k-q); }
+  .bd.k-num { border-color: var(--b-num); background: var(--k-num); }
+  .bd.k-tag { border-color: var(--b-tag); background: var(--k-tag); }
+  .bd.k-link { border-color: var(--b-link); background: var(--k-link); }
+  .bd.k-body { border-color: var(--b-body); background: var(--k-body); }
+  .bds { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 0 0 2px; }
+
+  .lines { list-style: none; margin: 0; padding: 0; }
+  .rl { margin: 0 0 6px; padding: 6px 10px 8px; border-left: 8px solid var(--b-body); border-radius: 6px; background: var(--k-body); }
+  .rl.r-open { border-left-color: var(--b-open); background: var(--k-open); }
+  .rl.r-close { border-left-color: var(--b-close); background: var(--k-close); }
+  .rl.r-q { border-left-color: var(--b-q); background: var(--k-q); }
+  .rl.r-num { border-left-color: var(--b-num); background: var(--k-num); }
+  .rl.r-tag { border-left-color: var(--b-tag); background: var(--k-tag); }
+  .rl.r-link { border-left-color: var(--b-link); background: var(--k-link); }
+  .rl.r-blank { border-left-color: var(--line); background: var(--k-blank); padding: 2px 10px; color: var(--ink3); }
+  .rl .tx { display: block; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; }
+  .rl mark { background: transparent; color: var(--ink); font-weight: 800; text-decoration: underline; text-decoration-thickness: 3px; text-underline-offset: 3px; padding: 0; }
+  .ln { font-size: 16px; color: var(--ink3); margin-right: 6px; font-variant-numeric: tabular-nums; }
+
+  .met { margin: 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .met div { padding: 8px 10px; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; }
+  .met dt { font-size: 16px; color: var(--ink3); margin: 0; }
+  .met dd { margin: 0; font-weight: 700; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+  .met .over dd { background: var(--warn-bg); color: var(--warn-ink); padding: 0 4px; border-radius: 4px; }
+
+  .skel { font-weight: 700; }
+  .status { min-height: 1.6em; color: var(--ink2); margin: 8px 0 0; }
+
+  details { margin: 0 0 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 4px 14px; }
+  summary { cursor: pointer; font-weight: 700; padding: 10px 0; min-height: 44px; }
+  details ul { margin: 0 0 12px; padding-left: 1.3em; }
+  details li { margin: 0 0 4px; }
+
+  .mw-footer { box-sizing: border-box; width: 100%; max-width: 100%; margin: 24px 0 0; padding: 16px; background: #F7F7F8;
+    border: 1px solid #D8D8DC; border-radius: 6px; color: #3A3A3E; font-family: system-ui, sans-serif; font-size: 12px; line-height: 1.7; }
+  .mw-footer p { margin: 0 0 6px; } .mw-footer p:last-child { margin-bottom: 0; } .mw-footer a { color: #0B5AA6; display: inline-block; padding: 13px 0; }
+
+  .layout { display: block; }
+  @media (min-width: 880px) {
+    main { padding: 24px 16px 40px; }
+    h1 { font-size: 24px; }
+    .layout { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 16px; align-items: start; }
+    .a-out { position: sticky; top: 16px; }
+    .sum { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>型ばらし</h1>
+  <p class="lead">気になる投稿を貼ると、書き出しの型・行ごとの役割・締めの型・長さを分けて見せます。最後に、型の並びだけを骨組みとして取り出せます。</p>
+  <ul class="notes" aria-label="先に読んでください">
+    <li data-n="1.">伸びた理由は分かりません。「この型だから伸びた」とは言えません。型の特徴を分けて見せるだけです</li>
+    <li data-n="2.">型の見分けは言葉のパターンによる目安です。外れることがあります</li>
+    <li data-n="3.">他人の文章は読むために使い、そのまま使わないでください。持ち帰るのは骨組みだけです</li>
+  </ul>
+
+  <div class="layout">
+    <section class="a-in" aria-label="投稿を貼る">
+      <div class="panel">
+        <p class="hint" style="margin-top:0">貼った文はお使いの端末の中だけで処理します。送信せず、保存もしません。</p>
+        <p class="hint">個人情報（氏名・連絡先・住所など）が入った投稿は貼らないでください。@ユーザー名は外してから貼るのがおすすめです。</p>
+        <label class="lb" for="txt" style="margin-top:12px">気になる投稿を貼る</label>
+        <textarea id="txt" spellcheck="false" autocomplete="off" placeholder="ここに投稿の文を貼ります"></textarea>
+        <div class="btnrow">
+          <button type="button" class="pri" id="sample1Btn">サンプル1で試す</button>
+          <button type="button" id="sample2Btn">サンプル2で試す</button>
+          <button type="button" id="clearBtn">消す</button>
+        </div>
+        <p class="hint" id="trunc" hidden>長いので、先頭の8000字だけ見ています。</p>
+      </div>
+    </section>
+
+    <section class="a-out" aria-label="分けた結果" aria-live="polite">
+      <div class="panel" id="empty">
+        <h2>分けた結果</h2>
+        <p class="lead" id="emptyMsg">投稿を貼ると、ここに書き出しの型・行ごとの役割・締めの型・長さが並びます。</p>
+      </div>
+      <div id="result" hidden>
+        <div class="panel">
+          <h2>型の目安</h2>
+          <ul class="sum">
+            <li><b>書き出し（1行目）</b><span class="v" id="hookV"></span></li>
+            <li><b>締め（最後の本文の行）</b><span class="v" id="closeV"></span></li>
+          </ul>
+          <p class="hint" id="hookNote" style="margin-top:0"></p>
+        </div>
+        <div class="panel">
+          <h2>行ごとの役割</h2>
+          <ol class="lines" id="lines"></ol>
+          <p class="hint">下線の太字は数字です（日付と年は除きます）。役割は文字でも書いています。</p>
+        </div>
+        <div class="panel">
+          <h2>長さ</h2>
+          <dl class="met" id="met"></dl>
+          <p class="hint">ユニット数は目安です。相手の投稿の長さを知るための参考値で、数え方がXと完全に同じとは限りません。</p>
+        </div>
+        <div class="panel">
+          <h2>骨組み</h2>
+          <p class="hint" style="margin-top:0">型の並びだけを取り出しています。貼った文の言葉は入っていません。</p>
+          <textarea id="skel" class="sk" rows="3" readonly aria-label="骨組み"></textarea>
+          <div class="btnrow"><button type="button" class="pri" id="copyBtn">骨組みをコピー</button></div>
+          <p class="status" id="copyStatus" role="status"></p>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <details>
+    <summary>見ているもの・見ないもの</summary>
+    <p style="margin-top:8px"><b>見ているもの</b></p>
+    <ul>
+      <li>1行目の書き出しの型（数字・問いかけ・共感・体験・予告）</li>
+      <li>各行の役割（書き出し・数字を含む行・問いの行・締め・タグの行・リンクの行・空行）</li>
+      <li>最後の本文の行の締めの型（問いかけ・呼びかけ・ひとこと・リンク誘導）</li>
+      <li>文字数・ユニット数・行数・段落数・一番長い行・絵文字の数・タグの数と位置</li>
+    </ul>
+    <p><b>見ないもの</b></p>
+    <ul>
+      <li>投稿が良いか悪いか、伸びた理由、反応の数</li>
+      <li>文章の意味や内容、事実が正しいか</li>
+      <li>画像・動画・リンク先、投稿者の名前</li>
+    </ul>
+  </details>
+
+  <footer class="mw-footer">
+    <p>みちAIワークス（MICHI AI WORKS）／代表 田中　泉</p>
+    <p>運営: <a href="https://michi-portfolio.vercel.app/" rel="noopener">みちAIワークス 公式サイト</a>（https://michi-portfolio.vercel.app/ ）／ お問い合わせ: <a href="mailto:nncf123nncf@gmail.com">nncf123nncf@gmail.com</a></p>
+    <p>貼った投稿はこのページの中（お使いの端末のブラウザ）だけで処理し、サーバーには送信せず、保存もしません。ページを閉じると消えます。アクセス解析（Cloudflare Web Analytics）で、ページの閲覧状況（閲覧数・参照元・ブラウザの種類など）を計測しています。貼った投稿は送信しません。</p>
+    <p>型の見分けは言葉のパターンによる目安です。投稿の良し悪しや、伸びた理由は分かりません。他人の文章をそのまま使うことはおすすめしません。</p>
+    <p>ログイン・会員登録・パスワードの入力を求めることはありません。</p>
+  </footer>
+</main>
+
+<script id="core">
+/* 型の見分けの部分(画面を使わない)。source/run-checks.js がここだけを取り出して検算する */
+var PP = (function () {
+  'use strict';
+  var MAXC = 8000, LIMIT = 280;
+  var WIDE = '__WIDE__'.split(',').map(function (h) { return parseInt(h, 16); });
+  function cpUnits(cp) {
+    var lo = 0, hi = WIDE.length / 2 - 1;
+    while (lo <= hi) { var mid = (lo + hi) >> 1, a = WIDE[mid * 2], b = WIDE[mid * 2 + 1]; if (cp < a) hi = mid - 1; else if (cp > b) lo = mid + 1; else return 2; }
+    return 1;
+  }
+  function units(s) { var n = 0, i, cp; for (i = 0; i < s.length; i++) { cp = s.codePointAt(i); if (cp > 0xFFFF) i++; n += cpUnits(cp); } return n; }
+  function chars(s) { return Array.from(s).length; }
+
+  var D = '[0-9０-９]';
+  var NUMRUN = D + '+(?:[,，.．]' + D + '+)*';
+  var UNIT = '(?:つのこと|つ|個|選|分|円|日|人|件|倍|%|％|kg|ヶ月|か月|ヵ月|ケ月|カ月|ヶ所|か所|回|本|枚|冊|社|歳|年|時間|秒|万|割|位|番|歩|km|キロ|ステップ|ポイント)';
+  var NUMUNIT_RE = new RegExp(NUMRUN + '\\s*' + UNIT, 'i');
+  var KANJI_UNIT_RE = /[一二三四五六七八九十]+(?:つ|選|個|件|倍)/;
+  var MARK_RE = new RegExp('(?:' + NUMRUN + '\\s*' + UNIT + ')|' + NUMRUN, 'gi');
+  var URL_RE = /https?:\/\/\S+/ig;
+  var TAG_RE = /[#＃][^\s#＃]+/g;
+  var EMOJI_RE = /\p{Extended_Pictographic}/gu;
+  var TAIL_RE = /[\s　「」『』（）()【】️‍\p{Extended_Pictographic}]+$/u;
+
+  function fill(m) { return new Array(m.length + 1).join('□'); }
+  function mask(t) {
+    return t.replace(URL_RE, fill)
+      .replace(new RegExp(D + '{4}[年/.\\-]' + D + '{1,2}[月/.\\-]' + D + '{1,2}日?', 'g'), fill)
+      .replace(new RegExp(D + '{1,2}月' + D + '{1,2}日', 'g'), fill)
+      .replace(new RegExp(D + '{4}年', 'g'), fill)
+      .replace(new RegExp(D + '{1,2}/' + D + '{1,2}', 'g'), fill);
+  }
+  function tailStrip(t) { return t.replace(TAIL_RE, ''); }
+  function isTagLine(t) {
+    var s = t.trim(); if (!s) return false;
+    var parts = s.split(/\s+/);
+    for (var i = 0; i < parts.length; i++) if (!/^[#＃][^\s#＃]+$/.test(parts[i])) return false;
+    return true;
+  }
+  function hasUrl(t) { URL_RE.lastIndex = 0; var r = URL_RE.test(t); URL_RE.lastIndex = 0; return r; }
+  function isUrlOnly(t) {
+    if (!hasUrl(t)) return false;
+    var rest = t.replace(URL_RE, '').replace(/[\s　↓⬇▼▽→️‍\p{Extended_Pictographic}]+/gu, '');
+    return rest === '';
+  }
+  function isQ(t) { var s = tailStrip(t.trim()); return /[？?]$/.test(s) || /か$/.test(s); }
+  function hasNumber(t) { return /[0-9０-９]/.test(mask(t)); }
+
+  function hooksOf(line) {
+    var m = mask(line), out = [], s = tailStrip(line.trim());
+    if (NUMUNIT_RE.test(m) || KANJI_UNIT_RE.test(m)) out.push('数字');
+    if (isQ(line)) out.push('問いかけ');
+    if (/正直|実は|ぶっちゃけ|本音|あるある|しんどい|つらい|辛い|困って|悩んで|ですよね/.test(line)) out.push('共感');
+    if (/(した|でした|だった|ました|かった)$/.test(s) || (/(昨日|先月|今日|去年|先週|今朝)/.test(line) && /(私|僕|ぼく|わたし|自分|うち|俺)/.test(line))) out.push('体験');
+    if (/[0-9０-９一二三四五六七八九十]+選|まとめ|方法|コツ|理由|ポイント|手順|つのこと/.test(line)) out.push('予告');
+    return out;
+  }
+  function closeTypeOf(t) {
+    if (hasUrl(t) || /こちら|↓|⬇|👇|▼/.test(t)) return 'リンク誘導';
+    if (isQ(t)) return '問いかけ';
+    if (/(してみて|みてください|てください|ください|どうぞ|しましょう|ましょう|てみよう)/.test(t)) return '呼びかけ';
+    if (chars(t.trim()) <= 20) return 'ひとこと';
+    return '決められない';
+  }
+  var CLOSE_PHRASE = { '問いかけ': '問いで締める', '呼びかけ': '呼びかけで締める', 'ひとこと': 'ひとことで締める', 'リンク誘導': 'リンク誘導で締める', '決められない': '締めの型は決められない' };
+
+  function marksOf(line) {
+    var m = mask(line), out = [], r;
+    MARK_RE.lastIndex = 0;
+    while ((r = MARK_RE.exec(m)) !== null) { if (r[0] === '') { MARK_RE.lastIndex++; continue; } out.push([r.index, r.index + r[0].length]); }
+    return out;
+  }
+
+  function analyze(input) {
+    var text = String(input == null ? '' : input).replace(/\r\n?/g, '\n'), truncated = false;
+    if (text.replace(/\s+/g, '') === '') return { empty: true };
+    if (chars(text) > MAXC) { text = Array.from(text).slice(0, MAXC).join(''); truncated = true; }
+    var raw = text.split('\n'), n = raw.length, lines = [], i, t, base;
+    for (i = 0; i < n; i++) {
+      t = raw[i].trim();
+      if (t === '') base = 'blank';
+      else if (isTagLine(t)) base = 'tag';
+      else if (hasUrl(t)) base = 'link';
+      else if (isQ(t)) base = 'q';
+      else if (hasNumber(t)) base = 'num';
+      else base = 'body';
+      lines.push({ raw: raw[i], t: t, base: base, open: false, close: false, marks: (base === 'tag' || base === 'link' || base === 'blank') ? [] : marksOf(raw[i]) });
+    }
+    var first = -1, last = -1;
+    for (i = 0; i < n; i++) if (lines[i].t !== '') { if (first < 0) first = i; last = i; }
+    lines[first].open = true;
+    var cand = -1;
+    for (i = n - 1; i >= 0; i--) {
+      if (lines[i].t === '') continue;
+      if (lines[i].base === 'tag' || isUrlOnly(lines[i].t)) continue;
+      cand = i; break;
+    }
+    var closeType;
+    if (cand >= 0) { lines[cand].close = true; closeType = closeTypeOf(lines[cand].t); }
+    else closeType = lines[last].base === 'tag' ? 'タグで終わる' : 'リンク誘導';
+    var hooks = hooksOf(lines[first].t);
+
+    var nonEmpty = 0, paras = 0, longest = 0, prevBlank = true;
+    for (i = 0; i < n; i++) {
+      if (lines[i].t === '') { prevBlank = true; continue; }
+      nonEmpty++; if (prevBlank) paras++; prevBlank = false;
+      var lc = chars(lines[i].raw.trim()); if (lc > longest) longest = lc;
+    }
+    var emoji = (text.match(EMOJI_RE) || []).length;
+    var urlCount = (text.match(URL_RE) || []).length;
+    var tagTotal = 0, atEnd = 0, inBody = 0;
+    for (i = 0; i < n; i++) {
+      var tl = lines[i].t; if (tl === '') continue;
+      var c = (tl.replace(URL_RE, ' ').match(TAG_RE) || []).length; if (!c) continue;
+      tagTotal += c;
+      if (lines[i].base === 'tag' && i > cand) atEnd += c; else inBody += c;
+    }
+    var tagPos = tagTotal === 0 ? 'なし' : (inBody === 0 ? '末尾' : (atEnd === 0 ? '本文中' : '本文中と末尾'));
+
+    var opening = hooks.length ? hooks.slice(0, 2).join('＋') + 'で始める' : '書き出しの型は決められない';
+    var tokens = [], bodyRun = 0, tagRun = 0, linkRun = 0, blankPending = false;
+    function flush() {
+      if (bodyRun) { tokens.push('本文' + bodyRun + '行'); bodyRun = 0; }
+      if (tagRun) { tokens.push('タグ' + tagRun + '個'); tagRun = 0; }
+      if (linkRun) { tokens.push('リンク' + linkRun + '件'); linkRun = 0; }
+    }
+    if (nonEmpty === 1) { tokens.push(opening); tokens.push('1行だけ'); }
+    else {
+      for (i = first; i <= last; i++) {
+        var L = lines[i];
+        if (L.t === '') { flush(); blankPending = true; continue; }
+        if (blankPending) { tokens.push('空行'); blankPending = false; }
+        if (L.open) { flush(); tokens.push(L.close ? opening + '（同じ行で' + CLOSE_PHRASE[closeType] + '）' : opening); continue; }
+        if (L.close) { flush(); tokens.push(CLOSE_PHRASE[closeType]); continue; }
+        if (L.base === 'tag') { if (bodyRun || linkRun) flush(); tagRun += (L.t.replace(URL_RE, ' ').match(TAG_RE) || []).length; continue; }
+        if (isUrlOnly(L.t)) { if (bodyRun || tagRun) flush(); linkRun++; continue; }
+        if (tagRun || linkRun) flush();
+        bodyRun++;
+      }
+      flush();
+    }
+    return {
+      empty: false, truncated: truncated, lines: lines, hooks: hooks, closeType: closeType,
+      metrics: { chars: chars(text), units: units(text), lines: nonEmpty, paras: paras, longest: longest, emoji: emoji, tags: tagTotal, tagPos: tagPos, urls: urlCount },
+      skeleton: tokens.join(' → ')
+    };
+  }
+  var SAMPLE1 = '副業を始めて3ヶ月で気づいた4つのこと\n\n最初の1ヶ月は何も売れなかった\n2ヶ月目に自己紹介を書き直したら問い合わせが来た\n3ヶ月目は断る勇気が要った\n\nあなたはどこで止まっていますか？\n#個人事業主 #副業';
+  var SAMPLE2 = '正直に言うと\n確定申告の時期はいつも憂鬱です\n領収書を探す時間がいちばんしんどい\n月末に10分だけ整理することにしました\n今年はこれで乗り切ります\n#フリーランス';
+  return { LIMIT: LIMIT, MAXC: MAXC, units: units, chars: chars, analyze: analyze, SAMPLE1: SAMPLE1, SAMPLE2: SAMPLE2 };
+})();
+</script>
+
+<script id="ui">
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+  var txt = $('txt'), timer = null;
+  var ROLE = { open: ['書き出し', 'k-open'], close: ['締め', 'k-close'], q: ['問いの行', 'k-q'], num: ['数字を含む行', 'k-num'], tag: ['タグの行', 'k-tag'], link: ['リンクの行', 'k-link'], body: ['本文', 'k-body'] };
+  function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+  function badge(key) { return el('span', 'bd ' + ROLE[key][1], ROLE[key][0]); }
+
+  function renderLine(L, idx) {
+    var li = el('li', 'rl r-' + (L.t === '' ? 'blank' : (L.open ? 'open' : (L.close ? 'close' : L.base))));
+    if (L.t === '') { li.textContent = '（空行）'; return li; }
+    var bds = el('div', 'bds'); bds.appendChild(el('span', 'ln', idx + '行目'));
+    if (L.open) bds.appendChild(badge('open'));
+    if (L.close) bds.appendChild(badge('close'));
+    if (L.base !== 'body') bds.appendChild(badge(L.base));
+    else if (!L.open && !L.close) bds.appendChild(badge('body'));
+    li.appendChild(bds);
+    var tx = el('span', 'tx'), pos = 0, raw = L.raw;
+    L.marks.forEach(function (m) {
+      if (m[0] > pos) tx.appendChild(document.createTextNode(raw.slice(pos, m[0])));
+      tx.appendChild(el('mark', null, raw.slice(m[0], m[1]))); pos = m[1];
+    });
+    if (pos < raw.length) tx.appendChild(document.createTextNode(raw.slice(pos)));
+    li.appendChild(tx);
+    return li;
+  }
+  function metric(label, value, over) { var d = el('div', over ? 'over' : ''); d.appendChild(el('dt', null, label)); d.appendChild(el('dd', null, value)); return d; }
+
+  function run() {
+    var r = PP.analyze(txt.value);
+    $('empty').hidden = !r.empty; $('result').hidden = r.empty; $('trunc').hidden = r.empty || !r.truncated;
+    if (r.empty) { $('lines').textContent = ''; $('met').textContent = ''; $('skel').value = ''; $('copyStatus').textContent = ''; return; }
+    $('hookV').textContent = r.hooks.length ? r.hooks.join('＋') : 'どの型とも決められません';
+    $('closeV').textContent = r.closeType === '決められない' ? 'どの型とも決められません' : r.closeType;
+    $('hookNote').textContent = r.hooks.length > 1 ? 'いくつか当てはまりました。先に書いたものを主な型としています。' : '';
+    var ul = $('lines'); ul.textContent = '';
+    r.lines.forEach(function (L, i) { ul.appendChild(renderLine(L, i + 1)); });
+    var m = r.metrics, mt = $('met'); mt.textContent = '';
+    mt.appendChild(metric('文字数', String(m.chars)));
+    mt.appendChild(metric('ユニット数', m.units + (m.units > PP.LIMIT ? '（目安の280を超えています）' : ''), m.units > PP.LIMIT));
+    mt.appendChild(metric('行数（空行を除く）', String(m.lines)));
+    mt.appendChild(metric('段落数', String(m.paras)));
+    mt.appendChild(metric('一番長い行', m.longest + '字'));
+    mt.appendChild(metric('絵文字', m.emoji + '個'));
+    mt.appendChild(metric('タグ', m.tags + '個（' + m.tagPos + '）'));
+    mt.appendChild(metric('リンク', m.urls + '件'));
+    $('skel').value = r.skeleton; $('copyStatus').textContent = '';
+  }
+  txt.addEventListener('input', function () { if (timer) clearTimeout(timer); timer = setTimeout(run, 120); });
+  $('sample1Btn').addEventListener('click', function () { txt.value = PP.SAMPLE1; run(); });
+  $('sample2Btn').addEventListener('click', function () { txt.value = PP.SAMPLE2; run(); });
+  $('clearBtn').addEventListener('click', function () { txt.value = ''; run(); txt.focus(); });
+  function fallback() { var s = $('skel'); s.focus(); s.select(); $('copyStatus').textContent = '選択しました。このまま長押しでコピーしてください。'; }
+  $('copyBtn').addEventListener('click', function () {
+    var t = $('skel').value; if (!t) return;
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(function () { $('copyStatus').textContent = '骨組みをコピーしました。'; }, fallback);
+    else fallback();
+  });
+  run();
+})();
+</script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js"
+        data-cf-beacon='{"token": "b4c9f7e78daf4edb84ef52b88633f649"}'></script>
+</body>
+</html>
